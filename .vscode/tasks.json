@@ -60,7 +60,7 @@
             "command": "cmd",
             "group": "test",
             "args": [
-                "/C",
+                // "/C",
                 "${fileDirname}\\${fileBasenameNoExtension}"
             ]
         },
