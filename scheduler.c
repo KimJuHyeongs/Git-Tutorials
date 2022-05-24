@@ -6,20 +6,35 @@
 #define MAX_RESERVATION 100
 #define MAX_ID 10
 #define MAX_PW 10
+#define MAX_SCHEDULE 100
 
-int disp_menu();
-int leap_check(const int);
-int is_enroll_num(const char*);
-void disp_calendar();
-void enroll_num();
-void deleteID(const int);
-void login_out();
+static int disp_menu();
+static int leap_check(const int);
+static int is_enroll_num(const char*);
+static void disp_calendar(const int, const int);
+static void enroll_num();
+static void deleteID(const int);
+static void login_out();
+static int on_schedule(const int, const int, const int);
+static void input_schedule();
+static void search_schedule();
 
 char user_id[MAX_USER][MAX_ID];
 char user_pw[MAX_USER][MAX_PW];
+int s_day[MAX_SCHEDULE][3];
+char s_id[MAX_SCHEDULE][MAX_ID];
 int mdays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-int login_check = 0;
+int login_check = -1;
 int cur_user = 0;
+int cur_login_idx = -1;
+int s_cnt = 0;
+
+typedef enum{
+    YEAR,
+    MONTH,
+    DAY
+};
+
 
 int main(void){
     int input;
@@ -36,8 +51,11 @@ int main(void){
             case 2:
                 login_out();
                 break;
+            case 3:
+                input_schedule();
+                break;
             case 4:
-                disp_calendar();
+                search_schedule();
                 break;
           default:
                printf("Wrong Enter.\nPlease Enter again.\n\n");
@@ -47,7 +65,7 @@ int main(void){
 
 }
 
-int disp_menu(){
+static int disp_menu(){
     int tmp;
     printf("-------------[ 회의실 예약 시스템 ]-------------\n");
     printf("1. 사번 등록/삭제\n");
@@ -62,11 +80,9 @@ int disp_menu(){
     return tmp;
 }
 
-void disp_calendar(){
-    int idx, y, m, check, start, day;
+static void disp_calendar(const int y, const int m){
+    int idx, check, start, day;
     int total = 0, cnt = 0;
-    printf("Enter Year and Month = ");
-    scanf("%d %d", &y, &m);
     
     for(idx=1; idx<y; idx++){
         if(leap_check(idx)) total += 366;
@@ -93,23 +109,28 @@ void disp_calendar(){
         cnt++;
     }
     for(idx=1;idx<=day;idx++){
-        printf("%5d",idx);
+        if(on_schedule(y,m,idx) == 0) printf("%5d",idx);
+        else{
+            printf("%2c",' ');
+            printf("*");
+            printf("%2d",idx);
+        }
         cnt++;
         if(cnt%7==0) printf("\n");
     }
     printf("\n------------------------------------\n\n");
 }
 
-int leap_check(const int y){
+static int leap_check(const int y){
     if((y%4==0 && y%100!=0) || y%400==0) return 1;
     else return 0;
 }
 
-void enroll_num(){
+static void enroll_num(){
     char tmp_id[100], tmp_pw[100];
     int idx;
 
-    if(login_check == 1){
+    if(login_check > 0){
         printf("@ 로그아웃 후 사용할 수 있습니다!\n");
         return;
     }
@@ -155,10 +176,9 @@ void enroll_num(){
     
 }
 
-void deleteID(const int del_idx){
+static void deleteID(const int del_idx){
     int idx;
     char del_check;
-    printf("del_idx = %d\n",del_idx);
 
     printf("이미 등록된 아이디입니다.\n해당 아이디를 삭제하시겠습니까? Y/N ");
     fflush(stdin);
@@ -185,13 +205,13 @@ void deleteID(const int del_idx){
     printf("\n");
 }
 
-void login_out(){
+static void login_out(){
     char tmp_id[100], tmp_pw[100];
     int tmp_login_check = 0;
 
-    if(login_check==1){
+    if(login_check > 0){
         printf("# 로그아웃 되었습니다!\n");
-        login_check = 0;
+        login_check = -1;
         return;
     }
 
@@ -215,12 +235,68 @@ void login_out(){
     }
 
     printf("# 로그인 되었습니다!\n");
-    login_check = 1;
+    login_check = tmp_login_check;
 }
 
-int is_enroll_num(const char* id){
+static int is_enroll_num(const char* id){
     int idx;
 
     for(idx=0;idx<cur_user;idx++) if(!strcmp(user_id[idx], id)) return idx;
     return -1;
+}
+
+static int on_schedule(const int y, const int m, const int d){
+    int idx, tmp_cnt=0;
+
+    for(idx=0;idx<s_cnt;idx++){
+        if((s_day[idx][YEAR] == y) && (s_day[idx][MONTH] == m) && s_day[idx][DAY] == d) tmp_cnt++;
+    }
+
+    return tmp_cnt;
+}
+
+static void input_schedule(){
+    int tmp_y, tmp_m, tmp_d;
+
+    if(login_check < 0){
+        printf("@ 로그인 후 사용할 수 있습니다.\n");
+        return;
+    }
+
+    printf("스케줄을 입력할 년, 월을 입력하세요 : ");
+    fflush(stdin);
+    scanf("%d %d", &tmp_y, &tmp_m);
+    
+    disp_calendar(tmp_y, tmp_m);
+
+    printf("스케줄을 입력할 날짜(일)를 입력하세요 : ");
+    fflush(stdin);
+    scanf("%d",&tmp_d);
+
+    s_day[s_cnt][YEAR] = tmp_y;
+    s_day[s_cnt][MONTH] = tmp_m;
+    s_day[s_cnt][DAY] = tmp_d;
+    strcpy(s_id[s_cnt], user_id[login_check]);
+    s_cnt++;
+}
+
+static void search_schedule(){
+    int tmp_y, tmp_m, tmp_d, tmp_cnt;
+
+    if(login_check < 0){
+        printf("@로그인 후 사용할 수 있습니다.\n");
+        return;
+    }
+
+    printf("스케줄을 입력할 년, 월을 입력하세요 : ");
+    fflush(stdin);
+    scanf("%d %d", &tmp_y, &tmp_m);
+    disp_calendar(tmp_y, tmp_m);
+
+    printf("스케줄을 입력할 날짜(일)를 입력하세요 : ");
+    fflush(stdin);
+    scanf("%d",&tmp_d);
+
+    tmp_cnt = on_schedule(tmp_y, tmp_m, tmp_d);
+    printf("%d년 %d월 %d일에 등록된 스케줄 수는 %d개 입니다.\n", tmp_y, tmp_m, tmp_d, tmp_cnt);
 }
