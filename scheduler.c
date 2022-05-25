@@ -10,34 +10,36 @@
 
 static int disp_menu();
 static int leap_check(const int);
-static int is_enroll_num(const char*);
+static int is_enroll_num(const char[][MAX_ID], const char*, const int);
 static void disp_calendar(const int, const int);
-static void enroll_num();
-static void deleteID(const int);
-static void login_out();
+static void enroll_num(char[][MAX_ID], char[][MAX_PW], int*, int*);
+static void deleteID(char[][MAX_ID], char[][MAX_PW], int*, const int);
+static void login_out(char[][MAX_ID], char[][MAX_PW], int*, int*);
+static int verify_pwd(const char[][MAX_PW], const int, const char*);
 static int on_schedule(const int, const int, const int);
-static void input_schedule();
-static void search_schedule();
+static void input_schedule(const char[][MAX_ID], const int);
+static void search_schedule(const int);
 
-char user_id[MAX_USER][MAX_ID];
-char user_pw[MAX_USER][MAX_PW];
+
 int s_day[MAX_SCHEDULE][3];
 char s_id[MAX_SCHEDULE][MAX_ID];
 int mdays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-int login_check = -1;
-int cur_user = 0;
-int cur_login_idx = -1;
 int s_cnt = 0;
 
 typedef enum{
     YEAR,
     MONTH,
     DAY
-};
+}DATE_IDX;
 
 
 int main(void){
     int input;
+    static char user_id[MAX_USER][MAX_ID];
+    static char user_pw[MAX_USER][MAX_PW];
+    static int cur_user = 0;
+    static int login_check = -1;
+
     while(1){
         input = disp_menu();
 
@@ -46,16 +48,16 @@ int main(void){
                 exit(0);
                 break;
             case 1:
-                enroll_num();
+                enroll_num(user_id, user_pw, &cur_user, &login_check);
                 break;
             case 2:
-                login_out();
+                login_out(user_id, user_pw, &cur_user, &login_check);
                 break;
             case 3:
-                input_schedule();
+                input_schedule(user_id, login_check);
                 break;
             case 4:
-                search_schedule();
+                search_schedule(login_check);
                 break;
           default:
                printf("Wrong Enter.\nPlease Enter again.\n\n");
@@ -126,15 +128,17 @@ static int leap_check(const int y){
     else return 0;
 }
 
-static void enroll_num(){
+static void enroll_num(char user_id[][MAX_ID], char user_pw[][MAX_PW]
+                       ,int* cur_user, int* login_check){
     char tmp_id[100], tmp_pw[100];
     int idx;
 
-    if(login_check > 0){
+    if(*login_check >= 0){
         printf("@ 로그아웃 후 사용할 수 있습니다!\n");
         return;
     }
-    if(cur_user >= MAX_USER){
+    
+    if(*cur_user >= MAX_USER){
         printf("@ 아이디는 최대 %d개 등록할 수 있습니다.\n",MAX_USER);
         return;
     }
@@ -149,9 +153,9 @@ static void enroll_num(){
         return;
     }
 
-    for(idx=0;idx<cur_user;idx++){
+    for(idx=0;idx<*cur_user;idx++){
         if(!strcmp(user_id[idx],tmp_id)){
-            deleteID(idx);
+            deleteID(user_id, user_pw, cur_user, idx);
             return;
         }
     }
@@ -166,52 +170,72 @@ static void enroll_num(){
         return;
     }
     
-    strcpy(user_id[cur_user],tmp_id);
-    strcpy(user_pw[cur_user],tmp_pw);
-    cur_user++;
+    strcpy(user_id[*cur_user],tmp_id);
+    strcpy(user_pw[*cur_user],tmp_pw);
+    (*cur_user)++;
     
     printf("등록된 사번 목록 : \n");
-    for(idx=0;idx<cur_user;idx++) printf("%s  ",user_id[idx]);
+    for(idx=0;idx<*cur_user;idx++) printf("%s  ",user_id[idx]);
     printf("\n");
     
 }
 
-static void deleteID(const int del_idx){
-    int idx;
+static void deleteID(char user_id[][MAX_ID], char user_pw[][MAX_PW]
+                     ,int *cur_user, const int del_idx){
+    int idx, pw_check;
     char del_check;
+    char tmp_pw[100];
 
     printf("이미 등록된 아이디입니다.\n해당 아이디를 삭제하시겠습니까? Y/N ");
     fflush(stdin);
     scanf("%c",&del_check);
     if(del_check == 'y' || del_check =='Y'){
-        if(cur_user == 1){
+        printf("> 비밀번호 입력 : ");
+        fflush(stdin);
+        fgets(tmp_pw,100,stdin);
+        tmp_pw[strlen(tmp_pw)-1] = '\0';
+
+        pw_check = verify_pwd(user_pw,del_idx,tmp_pw);
+        if(pw_check==0){
+            printf("@ 비밀번호가 다릅니다. 삭제할 수 없습니다.\n");
+            return;
+        }
+
+        if(*cur_user == 1){
             strcpy(user_id[del_idx], "\0");
             strcpy(user_pw[del_idx],"\0");
-            cur_user--;
+            (*cur_user)--;
         }
         else{
-            for(idx=del_idx;idx<cur_user-1;idx++){
+            for(idx=del_idx;idx<*cur_user-1;idx++){
                 strcpy(user_id[idx], user_id[idx+1]);
                 strcpy(user_pw[idx],user_pw[idx+1]);
             }
-            cur_user--;
-            strcpy(user_id[cur_user], "\0");
-            strcpy(user_pw[cur_user],"\0");
+            (*cur_user)--;
+            strcpy(user_id[*cur_user], "\0");
+            strcpy(user_pw[*cur_user],"\0");
         }
         printf("@ 아이디가 삭제되었습니다!\n");
     }
     printf("등록된 사번 목록 : \n");
-    for(idx=0;idx<cur_user;idx++) printf("%s  ", user_id[idx]);
+    for(idx=0;idx<*cur_user;idx++) printf("%s  ", user_id[idx]);
     printf("\n");
 }
 
-static void login_out(){
-    char tmp_id[100], tmp_pw[100];
-    int tmp_login_check = 0;
+static int verify_pwd(const char user_pw[][MAX_PW], const int tmp_login_check
+                      ,const char* tmp_pw){
+    if(strcmp(user_pw[tmp_login_check],tmp_pw)) return 0;
+    else return 1;
+}
 
-    if(login_check > 0){
+static void login_out(char user_id[][MAX_ID] ,char user_pw[][MAX_PW]
+                      ,int *cur_user, int *login_check){
+    char tmp_id[100], tmp_pw[100];
+    int tmp_login_check = 0, pw_check = 0;
+
+    if(*login_check >= 0){
         printf("# 로그아웃 되었습니다!\n");
-        login_check = -1;
+        *login_check = -1;
         return;
     }
 
@@ -219,7 +243,7 @@ static void login_out(){
     fflush(stdin);
     fgets(tmp_id,100,stdin);
     tmp_id[strlen(tmp_id)-1] = '\0';
-    tmp_login_check = is_enroll_num(tmp_id);
+    tmp_login_check = is_enroll_num(user_id, tmp_id, *cur_user);
     if(tmp_login_check < 0){
         printf("@ %s는 등록되지 않은 아이디입니다.\n",tmp_id);
         return;
@@ -229,16 +253,17 @@ static void login_out(){
     fflush(stdin);
     fgets(tmp_pw,100,stdin);
     tmp_pw[strlen(tmp_pw)-1] = '\0';
-    if(strcmp(user_pw[tmp_login_check],tmp_pw)){
-        printf("@ 비밀번호가 잘못되었습니다!\n");
+    pw_check = verify_pwd(user_pw, tmp_login_check, tmp_pw);
+    if(!pw_check){
+        printf("@ 비밀번호가 틀렸습니다!\n");
         return;
     }
 
     printf("# 로그인 되었습니다!\n");
-    login_check = tmp_login_check;
+    *login_check = tmp_login_check;
 }
 
-static int is_enroll_num(const char* id){
+static int is_enroll_num(const char user_id[][MAX_ID], const char* id, const int cur_user){
     int idx;
 
     for(idx=0;idx<cur_user;idx++) if(!strcmp(user_id[idx], id)) return idx;
@@ -255,7 +280,7 @@ static int on_schedule(const int y, const int m, const int d){
     return tmp_cnt;
 }
 
-static void input_schedule(){
+static void input_schedule(const char user_id[][MAX_ID], const int login_check){
     int tmp_y, tmp_m, tmp_d;
 
     if(login_check < 0){
@@ -280,7 +305,7 @@ static void input_schedule(){
     s_cnt++;
 }
 
-static void search_schedule(){
+static void search_schedule(const int login_check){
     int tmp_y, tmp_m, tmp_d, tmp_cnt;
 
     if(login_check < 0){
